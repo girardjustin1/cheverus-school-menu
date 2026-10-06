@@ -4,6 +4,11 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  VITE_ENABLE_DEMO = "true"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
 [[redirects]]
   from = "/*"

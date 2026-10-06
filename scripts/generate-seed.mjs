@@ -23,7 +23,13 @@ const sql =
       ...options.map((o) => insert('menu_options', { ...o, menu_month_id: m.id })),
     ]),
   ].join('\n') + '\n';
-fs.writeFileSync(new URL('../supabase/seed.sql', import.meta.url), sql);
+fs.writeFileSync(
+  new URL(
+    '../netlify/database/migrations/20261006140001_october-menu/migration.sql',
+    import.meta.url,
+  ),
+  sql,
+);
 console.log(
   `Generated ${days.length} school dates and ${days.reduce((n, d) => n + d.options.length, 0)} lunch options. October remains draft.`,
 );

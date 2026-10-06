@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { User } from '@supabase/supabase-js';
-import { supabase } from '../../lib/supabase/client';
+import { getUser, handleAuthCallback, logout, onAuthChange, type User } from '@netlify/identity';
 interface Auth {
   user: { id: string; email: string } | null;
   demo: boolean;
   loading: boolean;
   error: string;
+  passwordAction: 'recovery' | 'invite' | null;
+  inviteToken?: string;
+  finishPasswordAction: () => void;
   enterDemo: () => void;
   signOut: () => Promise<void>;
 }
@@ -14,52 +16,68 @@ const AuthContext = createContext<Auth | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [demo, setDemo] = useState(() => sessionStorage.getItem('cheverus.demo') === 'true');
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(!!supabase);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [passwordAction, setPasswordAction] = useState<'recovery' | 'invite' | null>(null);
+  const [inviteToken, setInviteToken] = useState<string>();
+  const [initialized, setInitialized] = useState(false);
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (!supabase) return;
     let active = true;
-    void supabase.auth
-      .getSession()
-      .then(({ data, error: authError }) => {
-        if (active) {
-          setUser(data.session?.user || null);
-          setLoading(false);
-          if (authError) setError(authError.message);
+    // Delay initialization to a microtask so StrictMode's first effect cleanup cannot redeem a token twice.
+    void Promise.resolve().then(async () => {
+      if (!active || initialized) return;
+      try {
+        const callback = await handleAuthCallback();
+        if (active && callback) {
+          sessionStorage.removeItem('cheverus.demo');
+          setDemo(false);
+          queryClient.clear();
         }
-      })
-      .catch((err: Error) => {
-        if (active) {
-          setError(err.message);
-          setLoading(false);
+        if (active && (callback?.type === 'recovery' || callback?.type === 'invite')) {
+          setPasswordAction(callback.type);
+          setInviteToken(callback.token);
         }
-      });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        const current = await getUser();
+        if (active) setUser(current);
+      } catch (err) {
+        if (active)
+          setError(err instanceof Error ? err.message : 'Could not restore your sign-in.');
+      } finally {
+        if (active) {
+          setLoading(false);
+          setInitialized(true);
+        }
+      }
+    });
+    const unsubscribe = onAuthChange((event, current) => {
       if (active) {
-        setUser(session?.user || null);
-        setLoading(false);
+        setUser(current);
+        if (current && (event === 'login' || event === 'recovery')) {
+          sessionStorage.removeItem('cheverus.demo');
+          setDemo(false);
+          queryClient.clear();
+        }
+        if (event === 'logout') queryClient.clear();
       }
     });
     return () => {
       active = false;
-      data.subscription.unsubscribe();
+      unsubscribe();
     };
-  }, []);
+  }, [initialized, queryClient]);
   const enterDemo = () => {
     queryClient.clear();
     sessionStorage.setItem('cheverus.demo', 'true');
     setDemo(true);
   };
   const signOut = async () => {
-    if (!demo && supabase) {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    }
+    if (!demo) await logout();
     queryClient.clear();
     sessionStorage.removeItem('cheverus.demo');
     setDemo(false);
     setUser(null);
+    setPasswordAction(null);
   };
   return (
     <AuthContext.Provider
@@ -72,6 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         demo,
         loading,
         error,
+        passwordAction,
+        inviteToken,
+        finishPasswordAction: () => {
+          setPasswordAction(null);
+          setInviteToken(undefined);
+        },
         enterDemo,
         signOut,
       }}

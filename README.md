@@ -1,6 +1,10 @@
 # Cheverus School · School day plans
 
-A mobile-first parent app for lunch, optional breakfast, and daily Extended Day attendance. Built with React, TypeScript, Vite, MUI, React Router, TanStack Query, React Hook Form, Zod, date-fns, and Supabase. Netlify serves the frontend; Supabase provides authentication and the private database.
+A mobile-first parent app for lunch, optional breakfast, and daily Extended Day attendance. React, TypeScript, Vite, MUI, React Router, TanStack Query, React Hook Form, Zod, and date-fns power the frontend. **Netlify hosts the app and Storybook, authenticates parents with Identity, runs the API in Functions, and stores private records in Netlify Database (Postgres).**
+
+- [Hosted app](https://cheverus-school-menu.netlify.app)
+- [Storybook — interactive parent workflow](https://cheverus-school-menu.netlify.app/storybook/?path=/story/day-parent-workflow--interactive)
+- [Netlify project](https://app.netlify.com/projects/cheverus-school-menu)
 
 ## Run locally
 
@@ -9,89 +13,66 @@ Use Node 22.12 or newer.
 ```sh
 npm ci
 npm run dev
-```
-
-Open the URL printed by Vite. Without cloud settings, choose **Try the October demo**. Demo family data lives only in localStorage, has an explicit banner, and uses an isolated sample workspace. It does not authenticate against Supabase or submit anything to school. Real family records are fetched from Supabase and are not persisted in the demo store.
-
-```sh
 npm run storybook
 ```
 
-Storybook includes an interactive date → lunch → breakfast → EDP workflow, meal card states, all EDP states, breakfast configurations, month summaries, email previews, child forms, and admin day editing.
+Choose **Try the October demo** to explore locally. Sample family data stays in a separate localStorage workspace; it does not submit anything to school or access real family records. Authenticated family records stay in query memory and Netlify Database. Identity manages the persisted sign-in session.
 
-## Netlify hosting
-
-The hosted app is [cheverus-school-menu.netlify.app](https://cheverus-school-menu.netlify.app), with [Storybook](https://cheverus-school-menu.netlify.app/storybook/?path=/story/day-parent-workflow--interactive) on the same site. The initial deploy is the isolated October demo; cloud sign-in and shared family records still require the backend setup below. The site belongs to the Girardjustin Netlify team and was deployed through the authenticated CLI. GitHub continuous deployment has not been connected yet.
-
-To redeploy from this checkout:
+For local Functions and database work:
 
 ```sh
 npx netlify link --id 55f963a4-ef7e-4a68-91cf-67d694c555be
-npm run build:netlify
-npx netlify deploy --no-build --dir dist
+npx netlify database migrations apply
+npx netlify dev
 ```
 
-After verifying that draft URL, publish with `npx netlify deploy --no-build --dir dist --prod`.
+Netlify Identity currently requires a hosted HTTPS site for testing. Local database/security tests do not require cloud credentials. Browser tests use port 5175 and start their own server to avoid using an unrelated local app.
 
-For continuous deployment and real sign-in:
+## Netlify setup and deployment
 
-1. Connect `girardjustin1/cheverus-school-menu` to the existing Cheverus site in Netlify. Use `main` for production after reviewing/merging the MVP PR; a branch deploy can preview `feature/mvp-school-meals-edp` first.
-2. Build command: `npm run build:netlify`. Publish directory: `dist`. This builds the app at `/` and Storybook at `/storybook/`. `netlify.toml` sets Node 22, SPA route redirects, and permits Storybook's same-origin preview iframe.
-3. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from a dedicated Cheverus Supabase project. Use a **publishable** key, never a secret/service role key. `.env.example` documents local configuration; actual `.env` files are ignored.
-4. Set the Supabase Auth Site URL to the Netlify production URL and allow `https://YOUR-SITE.netlify.app/auth/callback`. Add exact custom-domain/local-development URLs as needed. Magic links use the current origin; add branch preview URLs individually if testing Auth there.
-5. Deploy the database migration and October seed below, sign in, grant the initial administrator role through trusted SQL, review October, and publish it in `/admin/menus`.
+1. In [Cheverus Identity](https://app.netlify.com/projects/cheverus-school-menu/identity), select **Enable Identity**. Keep email confirmation enabled. Open registration allows parents to create accounts; invite-only registration is also supported. The app follows the site's registration setting.
+2. Parents use email and password, confirm their email, and remain signed in on their device. Confirmation, invitation, and password recovery callbacks are processed on page load. Recovery/invitation flows ask the parent to set a password before entering their plans. Netlify handles authentication emails; the application never sends meal-plan emails itself.
+3. The dedicated Cheverus Netlify Database is provisioned, with migrations applied to production and the isolated preview branch. It is accessed through `@netlify/database`. Migrations live in `netlify/database/migrations/<timestamp>_<slug>/migration.sql`. The schema and October seed are separate versioned migrations. Applied migration files are immutable; use the admin builder or a new migration for future changes rather than rewriting the original seed. Database URLs and credentials are managed server-side by Netlify and never exposed as Vite variables.
+4. The build command is `npm run build:netlify`, publishing `dist`. It builds the app at `/` and Storybook at `/storybook/`. Netlify routes the `/api/school/:resource` endpoint to a Function before the SPA fallback. Same-origin framing lets Storybook render its preview while excluding other origins.
+5. The optional `VITE_ENABLE_DEMO=true` setting includes a labeled sample workspace. Set it to `false` to hide the demo after school rollout. `.env.example` contains no database credentials.
 
-You can connect Netlify before Supabase. With no backend settings, the deployed app exposes only the clearly labeled device demo; real sign-in remains unavailable. To include the demo alongside a configured backend, set `VITE_ENABLE_DEMO=true`; it is otherwise disabled in a configured production build.
-
-## Set up Supabase
-
-Create/select a dedicated project; the implementation does not modify any unrelated existing project. Configure the email provider and use the default magic-link email template. The frontend uses `signInWithOtp` with persisted sessions and an implicit callback at `/auth/callback`.
+Deploy a preview from this checkout:
 
 ```sh
-npx supabase login
-npx supabase link --project-ref YOUR_CHEVERUS_PROJECT_REF
-npx supabase db push --include-seed
+npx netlify deploy
 ```
 
-For a local full Supabase stack (requires Docker):
+After verifying it, deploy to the stable URL:
 
 ```sh
-npx supabase start
-npx supabase db reset --local
-npx supabase migration list --local
+npx netlify deploy --prod
 ```
 
-Copy the local URL and publishable key into `.env.local` and restart Vite. No credentials are committed. The SQL migration creates all nine public tables, RLS policies, validation triggers, and the atomic `save_daily_request` and `save_menu_month` functions.
+Use the full deploy/build flow so Netlify can detect Database, provision its branch, and apply the migrations. A raw static `--no-build` upload alone does not verify database provisioning. The site belongs to the Girardjustin team. CLI deploys do not connect GitHub continuous deployment; connect `girardjustin1/cheverus-school-menu` to the existing site separately, using `main` after reviewing/merging the MVP PR.
 
-After the first administrator signs in, run this in the **trusted Supabase SQL editor**, replacing the email with that administrator’s actual account:
+## Administrator and October review
 
-```sql
-update public.profiles
-set role = 'admin'
-where id = (select id from auth.users where email = 'YOUR_ADMIN_EMAIL');
-```
+After the initial administrator creates and confirms an account, assign **admin** in that Identity user's server-controlled application roles through the Netlify dashboard. The API synchronizes that trusted role to the profile in each database transaction; user-editable metadata and submitted profile fields cannot grant access. Role revocation takes effect on subsequent API calls.
 
-A parent cannot grant themselves this role: browser permissions exclude the role column, and policies enforce ownership. Admins manage menus; they do not receive unrestricted access to other families’ children or requests.
+Use `/admin/menus` to review October and publish it. The production seed starts as **draft**. EDP is configured from Justin's confirmation: **2–6 pm every school day**; October 12 is no school. Future menus support unknown EDP availability and cannot be published until the schedule and options are complete. Copying food to another month is explicitly opt-in.
 
-October is seeded as **draft**. Verify it in the builder and use **Publish menu** after reviewing the source assumptions. EDP is configured from Justin’s confirmation: **2–6 pm every school day**. October 12 is no school. Future months support unknown EDP availability and cannot be published until their schedules and choices are complete. Food duplication is explicitly opt-in.
-
-## Source and product decisions
-
+- [October menu transcription and review](docs/OCTOBER_MENU_REVIEW.md)
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
-- [October menu review](docs/OCTOBER_MENU_REVIEW.md)
-- [Deployment and verification](docs/QA.md)
+- [Verification record](docs/QA.md)
 
-The October source supplies one calendar entrée and two everyday sandwich alternatives. The conservative rule is one complete lunch, with included sides described instead of independently selected. Breakfast is an optional grab-and-go participation request because the source supplies general examples, not dated guaranteed item choices. Admins can configure item-specific breakfast for later menus.
+The source provides one calendar entrée plus two everyday sandwich alternatives. The conservative rule is one complete lunch, with included sides described rather than separately selected. Breakfast is an optional grab-and-go participation request because the source provides general examples rather than dated guaranteed choices. Admins can configure item-specific breakfast for later menus.
 
-The source screenshot/PDF remain in the local `references/` folder and are intentionally ignored along with unrelated design-reference downloads. The app’s structured transcription and school logo are committed.
+## Private data and saving
 
-## Saving, history, and email
+Every API call requires a confirmed Netlify Identity account. Mutations require same-origin JSON requests and validated input. Ownership comes from the verified user, never a browser-supplied parent id. Each database transaction assumes a restricted, non-login SQL role and sets the verified user id locally; RLS isolates all nine tables, including menu-history access. Connection state resets at commit/rollback. The database connection credentials are never available in the browser.
 
-Daily requests autosave with optimistic feedback, serialized writes, a retained failure state, and explicit retry. Pending decisions survive internal route changes and query refreshes; the browser warns before leaving with unsaved changes. Supabase saves request statuses and food selections in one transaction, enforcing ownership and category rules even on direct API writes. No school breakfast is always optional.
+Daily requests and meal selections save atomically. Database constraints enforce option/date membership, ownership, single-selection rules, and service availability. The frontend retains optimistic choices and visible failures, serializes autosaves, and supports explicit retry. Meal names are snapshotted server-side; email snapshots are immutable. Archiving or unpublishing a menu preserves the owning family's history without exposing it to another parent. Admin roles permit menu management rather than unrestricted access to families.
 
-`/selections` shows the latest saved plans for each date. Meal names are snapshotted when selected. `/email` supports one date, selected dates, or the whole month. Open Email requires a valid recipient and completed required decisions; Copy Email remains available for draft text. Copy/open actions save immutable email snapshots. The app **cannot confirm email sending or delivery**; only the parent’s email client knows that status.
+The app collects only parent name/email and basic child/teacher details. It does not collect birthdays, medical records, allergies, student identifiers, addresses, or payment information.
 
-Menus can be archived or unpublished without losing the owning family’s history. Unsaved admin menu edits are retained in sessionStorage for the current tab; explicit discard removes them.
+## Email
+
+`/email` supports one day, selected days, or the whole month. **Open Email** requires a valid recipient and completed required choices; **Copy Email** also supports draft text. Copy/open actions preserve exact email snapshots. An encoded `mailto:` opens the parent's ordinary email app. The application cannot confirm sending or delivery.
 
 ## Verify
 
@@ -99,13 +80,13 @@ Menus can be archived or unpublished without losing the owning family’s histor
 npm run lint
 npm run typecheck
 npm run test
-npm run build
-npm run build-storybook
+npm run build:netlify
 npx playwright install chromium
 npm run test:e2e
 npm run format:check
+npm audit
 ```
 
-Unit/component tests cover meal rules, optional breakfast, attendance, no-school handling, history snapshots, mailto encoding, magic-link feedback, and autosave recovery. Database tests run the actual migration and seed in PGlite (real PostgreSQL), with separate authenticated families and administrator identities; Docker/cloud credentials are not required. Playwright exercises the parent and admin flows on desktop and phone widths 375, 390, and 430 px. GitHub Actions runs the same checks.
+Tests execute the actual Netlify SQL migrations and seed in PGlite (PostgreSQL), plus the Function handler against PostgreSQL with trusted Identity fixtures. They cover family isolation, role escalation, cross-origin mutations, transaction rollback, menu rules, email snapshots, auth feedback, and autosave recovery. Playwright covers parent/admin flows on desktop and 375/390/430 px phone layouts. GitHub Actions runs the same checks.
 
-The Netlify deployment and hosted app/Storybook browser checks passed. Live Supabase email delivery and cloud migration application remain unverified until a dedicated backend is connected.
+Live Identity confirmation/recovery emails and authenticated cloud saves require Identity activation and separate hosted verification. They are distinguished from the local security and component tests in `docs/QA.md`.

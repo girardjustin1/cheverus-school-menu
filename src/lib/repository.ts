@@ -1,4 +1,4 @@
-import { supabase } from './supabase/client';
+import { schoolApi } from './api';
 import october from '../data/october-2026.json';
 import type {
   Child,
@@ -47,72 +47,11 @@ function saveDemo(data: DemoData) {
 export function resetDemo() {
   localStorage.removeItem(DEMO_KEY);
 }
-function db() {
-  if (!supabase) throw new Error('Supabase is not configured.');
-  return supabase;
-}
-function check(error: { message: string } | null) {
-  if (error) throw new Error(error.message);
-}
-
-export async function loadFamily(userId: string, email: string, demo: boolean): Promise<Family> {
-  if (demo) return demoData().family;
-  const { data: foundProfile, error } = await db()
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
-  let profile = foundProfile;
-  check(error);
-  if (!profile) {
-    const result = await db()
-      .from('profiles')
-      .insert({ id: userId, email, display_name: '' })
-      .select()
-      .single();
-    check(result.error);
-    profile = result.data;
-  }
-  const [children, requests, selections, drafts] = await Promise.all([
-    db().from('children').select('*').eq('active', true).order('created_at'),
-    db().from('daily_requests').select('*'),
-    db().from('meal_selections').select('*'),
-    db().from('email_drafts').select('*').order('created_at', { ascending: false }),
-  ]);
-  [children, requests, selections, drafts].forEach((r) => check(r.error));
-  return {
-    profile: profile as Profile,
-    children: children.data as Child[],
-    drafts: drafts.data as EmailDraft[],
-    requests: (requests.data || []).map((r) => {
-      const selected = (selections.data || []).filter(
-        (s) => s.child_id === r.child_id && s.menu_day_id === r.menu_day_id,
-      );
-      return {
-        ...r,
-        option_ids: selected.map((s) => s.menu_option_id),
-        option_names: Object.fromEntries(
-          selected.map((s) => [s.menu_option_id, s.option_name_snapshot]),
-        ),
-      } as DailyRequest;
-    }),
-  };
+export async function loadFamily(_userId: string, _email: string, demo: boolean): Promise<Family> {
+  return demo ? demoData().family : schoolApi<Family>('family');
 }
 export async function loadMonths(demo: boolean): Promise<MenuMonth[]> {
-  if (demo) return demoData().months;
-  const result = await db()
-    .from('menu_months')
-    .select('*, categories:menu_categories(*), days:menu_days(*, options:menu_options(*))')
-    .order('year')
-    .order('month');
-  check(result.error);
-  return (result.data as MenuMonth[]).map((m) => ({
-    ...m,
-    categories: m.categories.sort((a, b) => a.sort_order - b.sort_order),
-    days: m.days
-      .sort((a, b) => a.service_date.localeCompare(b.service_date))
-      .map((d) => ({ ...d, options: d.options.sort((a, b) => a.sort_order - b.sort_order) })),
-  }));
+  return demo ? demoData().months : schoolApi<MenuMonth[]>('menus');
 }
 export async function saveRequest(request: DailyRequest, day: MenuDay, demo: boolean) {
   if (demo) {
@@ -133,21 +72,14 @@ export async function saveRequest(request: DailyRequest, day: MenuDay, demo: boo
     saveDemo(data);
     return saved;
   }
-  const result = await db().rpc('save_daily_request', {
-    p_child_id: request.child_id,
-    p_menu_day_id: request.menu_day_id,
-    p_breakfast_status: request.breakfast_status,
-    p_edp_status: request.edp_status,
-    p_option_ids: request.option_ids,
+  const { child_id, menu_day_id, breakfast_status, edp_status, option_ids } = request;
+  return schoolApi<DailyRequest>('request', {
+    child_id,
+    menu_day_id,
+    breakfast_status,
+    edp_status,
+    option_ids,
   });
-  check(result.error);
-  return {
-    ...request,
-    updated_at: new Date().toISOString(),
-    option_names: Object.fromEntries(
-      day.options.filter((o) => request.option_ids.includes(o.id)).map((o) => [o.id, o.name]),
-    ),
-  };
 }
 export async function saveChild(child: Child, demo: boolean) {
   if (demo) {
@@ -156,7 +88,16 @@ export async function saveChild(child: Child, demo: boolean) {
     saveDemo(data);
     return;
   }
-  check((await db().from('children').upsert(child)).error);
+  const { id, first_name, last_name, teacher_name, teacher_email, homeroom, active } = child;
+  await schoolApi('child', {
+    id,
+    first_name,
+    last_name,
+    teacher_name,
+    teacher_email,
+    homeroom,
+    active,
+  });
 }
 export async function saveProfile(profile: Profile, demo: boolean) {
   if (demo) {
@@ -165,14 +106,7 @@ export async function saveProfile(profile: Profile, demo: boolean) {
     saveDemo(data);
     return;
   }
-  check(
-    (
-      await db()
-        .from('profiles')
-        .update({ display_name: profile.display_name })
-        .eq('id', profile.id)
-    ).error,
-  );
+  await schoolApi('profile', { display_name: profile.display_name });
 }
 export async function saveDraft(draft: EmailDraft, demo: boolean) {
   if (demo) {
@@ -181,13 +115,17 @@ export async function saveDraft(draft: EmailDraft, demo: boolean) {
     saveDemo(data);
     return;
   }
-  check(
-    (
-      await db()
-        .from('email_drafts')
-        .insert({ ...draft, user_id: (await db().auth.getUser()).data.user?.id })
-    ).error,
-  );
+  const { id, child_id, menu_month_id, recipient, subject, body, service_dates, opened_at } = draft;
+  await schoolApi('draft', {
+    id,
+    child_id,
+    menu_month_id,
+    recipient,
+    subject,
+    body,
+    service_dates,
+    opened_at,
+  });
 }
 export async function saveMenu(month: MenuMonth, demo: boolean) {
   if (demo) {
@@ -198,5 +136,5 @@ export async function saveMenu(month: MenuMonth, demo: boolean) {
     saveDemo(data);
     return;
   }
-  check((await db().rpc('save_menu_month', { p_menu: month })).error);
+  await schoolApi('menu', month);
 }

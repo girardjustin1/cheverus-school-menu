@@ -1,3 +1,5 @@
+> Updated backend decision: Justin requested Netlify only. The implemented backend now uses Netlify Identity, Functions, and Netlify Database. The discovery notes below retain the original product plan; the current architecture and setup are documented in README.md.
+
 # Cheverus daily plans — implementation plan
 
 ## Discovery (October 6, 2026)

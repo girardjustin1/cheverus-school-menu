@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Box, Button, Divider, TextField, Typography } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
@@ -6,37 +6,103 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { demoEnabled, supabase } from '../../lib/supabase/client';
+import {
+  acceptInvite,
+  getSettings,
+  login,
+  requestPasswordRecovery,
+  signup,
+  updateUser,
+  type Settings,
+} from '@netlify/identity';
+import { demoEnabled } from '../../lib/api';
 import { useAuth } from './AuthProvider';
-const schema = z.object({ email: z.string().trim().email('Enter a valid email address.') });
 export function LoginPage() {
-  const { user, loading, enterDemo, error: authError } = useAuth();
-  const [sent, setSent] = useState(false);
+  const {
+    user,
+    loading,
+    enterDemo,
+    error: authError,
+    passwordAction,
+    inviteToken,
+    finishPasswordAction,
+  } = useAuth();
+  const [mode, setMode] = useState<'login' | 'signup' | 'recover'>('login');
+  const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
+  const [settings, setSettings] = useState<Settings | null>(null);
+  useEffect(() => {
+    let active = true;
+    void getSettings()
+      .then((value) => {
+        if (active) setSettings(value);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
   const location = useLocation();
   const callbackError = new URLSearchParams(location.hash.replace(/^#/, '')).get(
     'error_description',
   );
+  const settingPassword = !!passwordAction;
+  const schema = z.object({
+    email: settingPassword ? z.string() : z.string().trim().email('Enter a valid email address.'),
+    password:
+      mode === 'recover' && !settingPassword
+        ? z.string()
+        : z
+            .string()
+            .min(
+              settingPassword || mode === 'signup' ? 10 : 1,
+              settingPassword || mode === 'signup'
+                ? 'Use at least 10 characters.'
+                : 'Enter your password.',
+            ),
+    name:
+      mode === 'signup' && !settingPassword
+        ? z.string().trim().min(1, 'Enter your name.').max(100)
+        : z.string(),
+  });
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
-  } = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) });
-  if (user && !loading) return <Navigate to="/menu" replace />;
-  const submit = handleSubmit(async ({ email }) => {
+  } = useForm<{ email: string; password: string; name: string }>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: '', password: '', name: '' },
+  });
+  const switchMode = (next: typeof mode) => {
+    setMode(next);
     setError('');
-    if (!supabase) {
+    setFeedback('');
+    reset();
+  };
+  if (user && !loading && !settingPassword) return <Navigate to="/menu" replace />;
+  const submit = handleSubmit(async ({ email, password, name }) => {
+    setError('');
+    setFeedback('');
+    try {
+      if (passwordAction === 'invite' && inviteToken) await acceptInvite(inviteToken, password);
+      else if (passwordAction === 'recovery') await updateUser({ password });
+      else if (mode === 'recover') {
+        await requestPasswordRecovery(email);
+        setFeedback('If that email has an account, a password reset link is on its way.');
+        return;
+      } else if (mode === 'signup') {
+        const created = await signup(email, password, { full_name: name });
+        if (!created.confirmedAt)
+          setFeedback('Check your inbox to confirm your account, then return to sign in.');
+        return;
+      } else await login(email, password);
+      if (settingPassword) finishPasswordAction();
+    } catch (err) {
       setError(
-        'Cloud sign-in isn’t connected yet. Add the Supabase settings in Netlify, or explore the demo below.',
+        err instanceof Error ? err.message : 'Could not complete sign-in. Please try again.',
       );
-      return;
     }
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    });
-    if (error) setError(error.message);
-    else setSent(true);
   });
   return (
     <Box
@@ -110,20 +176,44 @@ export function LoginPage() {
       >
         <Box sx={{ maxWidth: 380, width: '100%' }}>
           <Typography variant="h2" sx={{ mb: 1 }}>
-            {sent ? 'Check your inbox.' : 'Welcome, parents.'}
+            {settingPassword
+              ? 'Set your password.'
+              : mode === 'signup'
+                ? 'Join your school plans.'
+                : mode === 'recover'
+                  ? 'Reset your password.'
+                  : 'Welcome, parents.'}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-            {sent
-              ? 'We sent you a sign-in link. Open it to return to your school plans. You can close this tab.'
-              : 'Sign in with your email. No password to remember.'}
+            {settingPassword
+              ? 'Choose a password with at least 10 characters.'
+              : mode === 'signup'
+                ? 'Create your account with an email and password. Your family plans stay private.'
+                : mode === 'recover'
+                  ? 'We’ll email you a link to choose a new password.'
+                  : 'Sign in to save your plans and return to them on any device.'}
           </Typography>
           {(error || authError || callbackError) && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {error || authError || callbackError}
             </Alert>
           )}
-          {!sent && (
-            <Box component="form" onSubmit={submit}>
+          {feedback && (
+            <Alert severity="success" sx={{ mb: 3 }}>
+              {feedback}
+            </Alert>
+          )}
+          <Box component="form" onSubmit={submit} sx={{ display: 'grid', gap: 2 }}>
+            {mode === 'signup' && !settingPassword && (
+              <TextField
+                label="Parent name"
+                autoComplete="name"
+                {...register('name')}
+                error={!!errors.name}
+                helperText={errors.name?.message}
+              />
+            )}
+            {!settingPassword && (
               <TextField
                 label="Parent email"
                 type="email"
@@ -132,26 +222,50 @@ export function LoginPage() {
                 error={!!errors.email}
                 helperText={errors.email?.message}
               />
-              <Button
-                type="submit"
-                variant="contained"
-                fullWidth
-                endIcon={<ArrowForwardIcon />}
-                disabled={isSubmitting || loading}
-                sx={{ mt: 2 }}
-              >
-                {isSubmitting ? 'Sending link…' : 'Email me a sign-in link'}
-              </Button>
-            </Box>
-          )}
-          {sent && (
+            )}
+            {(mode !== 'recover' || settingPassword) && (
+              <TextField
+                label={settingPassword ? 'New password' : 'Password'}
+                type="password"
+                autoComplete={
+                  settingPassword || mode === 'signup' ? 'new-password' : 'current-password'
+                }
+                {...register('password')}
+                error={!!errors.password}
+                helperText={errors.password?.message}
+              />
+            )}
             <Button
-              variant="outlined"
-              startIcon={<MailOutlineIcon />}
-              onClick={() => setSent(false)}
+              type="submit"
+              variant="contained"
+              fullWidth
+              endIcon={mode === 'recover' ? <MailOutlineIcon /> : <ArrowForwardIcon />}
+              disabled={isSubmitting || loading}
             >
-              Use a different email
+              {isSubmitting
+                ? 'Please wait…'
+                : settingPassword
+                  ? 'Save password'
+                  : mode === 'signup'
+                    ? 'Create account'
+                    : mode === 'recover'
+                      ? 'Email me a reset link'
+                      : 'Sign in'}
             </Button>
+          </Box>
+          {!settingPassword && (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+              {mode === 'login' ? (
+                <>
+                  {settings && !settings.disableSignup && (
+                    <Button onClick={() => switchMode('signup')}>Create an account</Button>
+                  )}
+                  <Button onClick={() => switchMode('recover')}>Forgot password?</Button>
+                </>
+              ) : (
+                <Button onClick={() => switchMode('login')}>Back to sign in</Button>
+              )}
+            </Box>
           )}
           {demoEnabled && (
             <>

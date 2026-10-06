@@ -16,8 +16,8 @@ let novemberId = '';
 const day = month.days.find((d) => d.service_date === '2026-10-06')!;
 const asUser = async <T>(id: string, fn: (tx: Transaction) => Promise<T>) =>
   db.transaction(async (tx) => {
-    await tx.exec('set local role authenticated');
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id]);
+    await tx.exec('set local role cheverus_app');
+    await tx.query("select set_config('cheverus.user_id',$1,true)", [id]);
     return fn(tx);
   });
 const save = (
@@ -37,16 +37,16 @@ const save = (
   ]);
 beforeAll(async () => {
   await db.exec(
-    "create role anon; create role authenticated; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$; grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;",
+    readFileSync('netlify/database/migrations/20261006140000_school-plans/migration.sql', 'utf8'),
   );
-  await db.exec(readFileSync('supabase/migrations/20261006125922_school_plans.sql', 'utf8'));
-  await db.exec(readFileSync('supabase/seed.sql', 'utf8'));
+  await db.exec(
+    readFileSync('netlify/database/migrations/20261006140001_october-menu/migration.sql', 'utf8'),
+  );
   for (const [id, role] of [
     [parent, 'parent'],
     [other, 'parent'],
     [admin, 'admin'],
   ]) {
-    await db.query('insert into auth.users values($1)', [id]);
     await db.query('insert into public.profiles(id,role) values($1,$2)', [id, role]);
   }
   await db.query(
@@ -58,7 +58,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.close();
 });
-describe('real Postgres migrations, RLS, and transactional validation', () => {
+describe('real Postgres migrations, RLS, and Netlify Identity context and transactional validation', () => {
   it('enables RLS on every public table', async () => {
     const r = await db.query<{ relrowsecurity: boolean }>(
       "select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'",
@@ -140,7 +140,7 @@ describe('real Postgres migrations, RLS, and transactional validation', () => {
     await expect(asUser(parent, (tx) => save(tx))).rejects.toThrow(/not confirmed/);
     await db.query('update public.menu_days set edp_available=true where id=$1', [day.id]);
   });
-  it('enforces single selection on direct Data API inserts too', async () => {
+  it('enforces single selection on direct SQL inserts too', async () => {
     await expect(
       asUser(parent, (tx) =>
         tx.query(

@@ -20,14 +20,14 @@ const AdminPage = lazy(() =>
   import('../features/admin/AdminPage').then((m) => ({ default: m.AdminPage })),
 );
 function Protected() {
-  const { user, loading, demo } = useAuth();
+  const { user, loading, demo, passwordAction } = useAuth();
   if (loading)
     return (
       <Box sx={{ p: 8, textAlign: 'center' }}>
         <CircularProgress aria-label="Loading session" />
       </Box>
     );
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user || passwordAction) return <Navigate to="/login" replace />;
   return (
     <WorkspaceProvider key={`${user.id}:${demo}`}>
       <SaveProvider>

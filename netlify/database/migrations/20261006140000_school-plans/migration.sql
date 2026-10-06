@@ -1,10 +1,26 @@
+-- Netlify Functions set the verified Identity id in a transaction and assume this restricted role.
+-- Database credentials never reach the browser. Public has no table/API privileges.
+do $$ begin
+  if not exists(select 1 from pg_roles where rolname='cheverus_app') then
+    create role cheverus_app nologin nosuperuser nocreatedb nocreaterole noinherit;
+  end if;
+end $$;
+grant cheverus_app to current_user;
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to cheverus_app;
+create function private.user_id() returns uuid language sql stable set search_path='' as $$
+  select nullif(current_setting('cheverus.user_id',true),'')::uuid;
+$$;
+revoke all on function private.user_id() from public;
+grant execute on function private.user_id() to cheverus_app;
 -- Family data is private; school menus are shared only after publication.
 create schema if not exists private;
 revoke all on schema private from public;
-grant usage on schema private to authenticated;
+grant usage on schema private to cheverus_app;
 
 create table public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
+  id uuid primary key ,
   display_name text not null default '' check (length(display_name) <= 100),
   email text not null default '',
   role text not null default 'parent' check (role in ('parent','admin')),
@@ -21,7 +37,7 @@ create table public.menu_months (
   id uuid primary key default gen_random_uuid(), school_year text not null,
   year integer not null check (year between 2020 and 2100), month integer not null check (month between 1 and 12),
   title text not null, description text not null default '', status text not null default 'draft' check (status in ('draft','published','archived')),
-  source_reference text not null default '', created_by uuid references auth.users(id) on delete set null,
+  source_reference text not null default '', created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(), updated_at timestamptz not null default now(), unique(year,month)
 );
 create table public.menu_days (
@@ -79,12 +95,12 @@ create index options_category on public.menu_options(menu_category_id);
 create index drafts_owner on public.email_drafts(user_id);
 create index drafts_month on public.email_drafts(menu_month_id);
 
--- Read a trusted database role, never user-editable JWT user_metadata.
+-- Profile roles are synchronized server-side from verified Identity app_metadata.roles.
 create function private.is_admin() returns boolean language sql stable security definer set search_path = '' as $$
-  select auth.uid() is not null and exists(select 1 from public.profiles where id = auth.uid() and role = 'admin');
+  select private.user_id() is not null and exists(select 1 from public.profiles where id = private.user_id() and role = 'admin');
 $$;
 revoke all on function private.is_admin() from public;
-grant execute on function private.is_admin() to authenticated;
+grant execute on function private.is_admin() to cheverus_app;
 
 alter table public.profiles enable row level security;
 alter table public.children enable row level security;
@@ -96,41 +112,41 @@ alter table public.daily_requests enable row level security;
 alter table public.meal_selections enable row level security;
 alter table public.email_drafts enable row level security;
 
-create policy own_profile_read on public.profiles for select to authenticated using (id = (select auth.uid()));
-create policy own_profile_create on public.profiles for insert to authenticated with check (id = (select auth.uid()) and role = 'parent');
-create policy own_profile_update on public.profiles for update to authenticated using (id = (select auth.uid())) with check (id = (select auth.uid()));
-create policy own_children on public.children for all to authenticated using (parent_user_id = (select auth.uid())) with check (parent_user_id = (select auth.uid()));
+create policy own_profile_read on public.profiles for select to cheverus_app using (id = (select private.user_id()));
+create policy own_profile_create on public.profiles for insert to cheverus_app with check (id = (select private.user_id()) and role = 'parent');
+create policy own_profile_update on public.profiles for update to cheverus_app using (id = (select private.user_id())) with check (id = (select private.user_id()));
+create policy own_children on public.children for all to cheverus_app using (parent_user_id = (select private.user_id())) with check (parent_user_id = (select private.user_id()));
 -- Avoid recursive policies between months and days: use a narrow private history lookup.
 create function private.can_read_month(p_id uuid) returns boolean language sql stable security definer set search_path = '' as $$
-  select auth.uid() is not null and exists(select 1 from public.menu_months m where m.id = p_id and (
-    m.status = 'published' or private.is_admin() or exists(select 1 from public.menu_days d join public.daily_requests r on r.menu_day_id=d.id where d.menu_month_id=m.id and r.user_id=auth.uid())
-    or exists(select 1 from public.email_drafts e where e.menu_month_id=m.id and e.user_id=auth.uid())
+  select private.user_id() is not null and exists(select 1 from public.menu_months m where m.id = p_id and (
+    m.status = 'published' or private.is_admin() or exists(select 1 from public.menu_days d join public.daily_requests r on r.menu_day_id=d.id where d.menu_month_id=m.id and r.user_id=private.user_id())
+    or exists(select 1 from public.email_drafts e where e.menu_month_id=m.id and e.user_id=private.user_id())
   ));
 $$;
 revoke all on function private.can_read_month(uuid) from public;
-grant execute on function private.can_read_month(uuid) to authenticated;
-create policy menu_read on public.menu_months for select to authenticated using ((select private.can_read_month(id)));
-create policy menu_admin on public.menu_months for all to authenticated using ((select private.is_admin())) with check ((select private.is_admin()));
-create policy day_read on public.menu_days for select to authenticated using ((select private.can_read_month(menu_month_id)));
-create policy day_admin on public.menu_days for all to authenticated using ((select private.is_admin())) with check ((select private.is_admin()));
-create policy category_read on public.menu_categories for select to authenticated using ((select private.can_read_month(menu_month_id)));
-create policy category_admin on public.menu_categories for all to authenticated using ((select private.is_admin())) with check ((select private.is_admin()));
-create policy option_read on public.menu_options for select to authenticated using ((select private.can_read_month(menu_month_id)));
-create policy option_admin on public.menu_options for all to authenticated using ((select private.is_admin())) with check ((select private.is_admin()));
-create policy request_read on public.daily_requests for select to authenticated using (user_id = (select auth.uid()));
-create policy request_create on public.daily_requests for insert to authenticated with check (user_id = (select auth.uid()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school));
-create policy request_update on public.daily_requests for update to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school));
-create policy selection_read on public.meal_selections for select to authenticated using (user_id = (select auth.uid()));
-create policy selection_write on public.meal_selections for all to authenticated using (user_id = (select auth.uid()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school)) with check (user_id = (select auth.uid()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school));
-create policy draft_read on public.email_drafts for select to authenticated using (user_id = (select auth.uid()));
-create policy draft_create on public.email_drafts for insert to authenticated with check (user_id = (select auth.uid()) and (select private.can_read_month(menu_month_id)));
+grant execute on function private.can_read_month(uuid) to cheverus_app;
+create policy menu_read on public.menu_months for select to cheverus_app using ((select private.can_read_month(id)));
+create policy menu_admin on public.menu_months for all to cheverus_app using ((select private.is_admin())) with check ((select private.is_admin()));
+create policy day_read on public.menu_days for select to cheverus_app using ((select private.can_read_month(menu_month_id)));
+create policy day_admin on public.menu_days for all to cheverus_app using ((select private.is_admin())) with check ((select private.is_admin()));
+create policy category_read on public.menu_categories for select to cheverus_app using ((select private.can_read_month(menu_month_id)));
+create policy category_admin on public.menu_categories for all to cheverus_app using ((select private.is_admin())) with check ((select private.is_admin()));
+create policy option_read on public.menu_options for select to cheverus_app using ((select private.can_read_month(menu_month_id)));
+create policy option_admin on public.menu_options for all to cheverus_app using ((select private.is_admin())) with check ((select private.is_admin()));
+create policy request_read on public.daily_requests for select to cheverus_app using (user_id = (select private.user_id()));
+create policy request_create on public.daily_requests for insert to cheverus_app with check (user_id = (select private.user_id()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school));
+create policy request_update on public.daily_requests for update to cheverus_app using (user_id = (select private.user_id())) with check (user_id = (select private.user_id()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school));
+create policy selection_read on public.meal_selections for select to cheverus_app using (user_id = (select private.user_id()));
+create policy selection_write on public.meal_selections for all to cheverus_app using (user_id = (select private.user_id()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school)) with check (user_id = (select private.user_id()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school));
+create policy draft_read on public.email_drafts for select to cheverus_app using (user_id = (select private.user_id()));
+create policy draft_create on public.email_drafts for insert to cheverus_app with check (user_id = (select private.user_id()) and (select private.can_read_month(menu_month_id)));
 -- Draft snapshots deliberately have no update/delete policy.
-revoke all on all tables in schema public from anon;
-grant select on all tables in schema public to authenticated;
-grant insert(id,display_name,email) on public.profiles to authenticated;
-grant update(display_name,updated_at) on public.profiles to authenticated;
-grant insert,update,delete on public.children,public.menu_months,public.menu_days,public.menu_categories,public.menu_options,public.daily_requests,public.meal_selections to authenticated;
-grant insert on public.email_drafts to authenticated;
+revoke all on all tables in schema public from public;
+grant select on all tables in schema public to cheverus_app;
+grant insert(id,display_name,email) on public.profiles to cheverus_app;
+grant update(display_name,updated_at) on public.profiles to cheverus_app;
+grant insert,update,delete on public.children,public.menu_months,public.menu_days,public.menu_categories,public.menu_options,public.daily_requests,public.meal_selections to cheverus_app;
+grant insert on public.email_drafts to cheverus_app;
 
 create function private.touch_updated_at() returns trigger language plpgsql set search_path = '' as $$ begin new.updated_at=now(); return new; end; $$;
 create trigger profile_touch before update on public.profiles for each row execute function private.touch_updated_at();
@@ -147,7 +163,7 @@ begin
 end; $$;
 create trigger validate_day before insert or update on public.menu_days for each row execute function private.validate_day();
 
--- Deferred validation protects direct Data API writes as well as the transactional RPC.
+-- Deferred validation protects direct SQL writes as well as the transactional function.
 create function private.validate_request() returns trigger language plpgsql set search_path = '' as $$
 declare r public.daily_requests; d public.menu_days; cid uuid; did uuid;
 begin
@@ -171,26 +187,26 @@ create trigger snapshot_option before insert or update on public.meal_selections
 
 create function public.save_daily_request(p_child_id uuid,p_menu_day_id uuid,p_breakfast_status text,p_edp_status text,p_option_ids uuid[]) returns void language plpgsql security invoker set search_path = '' as $$
 begin
-  if auth.uid() is null then raise exception 'Sign in to save'; end if;
+  if private.user_id() is null then raise exception 'Sign in to save'; end if;
   -- Serialize concurrent writes to this child/date, including initial insert races.
   perform pg_advisory_xact_lock(hashtextextended(p_child_id::text || p_menu_day_id::text,0));
-  if not exists(select 1 from public.children where id=p_child_id and parent_user_id=auth.uid() and active) then raise exception 'Child not found'; end if;
+  if not exists(select 1 from public.children where id=p_child_id and parent_user_id=private.user_id() and active) then raise exception 'Child not found'; end if;
   if (select count(distinct o.id) from public.menu_options o where o.id=any(p_option_ids) and o.menu_day_id=p_menu_day_id) <> cardinality(p_option_ids) then raise exception 'Options must belong to the selected date'; end if;
-  insert into public.daily_requests(user_id,child_id,menu_day_id,breakfast_status,edp_status) values(auth.uid(),p_child_id,p_menu_day_id,p_breakfast_status,p_edp_status)
+  insert into public.daily_requests(user_id,child_id,menu_day_id,breakfast_status,edp_status) values(private.user_id(),p_child_id,p_menu_day_id,p_breakfast_status,p_edp_status)
   on conflict(child_id,menu_day_id) do update set breakfast_status=excluded.breakfast_status,edp_status=excluded.edp_status,updated_at=now();
-  delete from public.meal_selections where child_id=p_child_id and menu_day_id=p_menu_day_id and user_id=auth.uid();
+  delete from public.meal_selections where child_id=p_child_id and menu_day_id=p_menu_day_id and user_id=private.user_id();
   insert into public.meal_selections(user_id,child_id,menu_day_id,menu_option_id,meal_type,option_name_snapshot)
-  select auth.uid(),p_child_id,p_menu_day_id,id,meal_type,name from public.menu_options where id=any(p_option_ids);
+  select private.user_id(),p_child_id,p_menu_day_id,id,meal_type,name from public.menu_options where id=any(p_option_ids);
 end; $$;
-revoke all on function public.save_daily_request(uuid,uuid,text,text,uuid[]) from public,anon;
-grant execute on function public.save_daily_request(uuid,uuid,text,text,uuid[]) to authenticated;
+revoke all on function public.save_daily_request(uuid,uuid,text,text,uuid[]) from public;
+grant execute on function public.save_daily_request(uuid,uuid,text,text,uuid[]) to cheverus_app;
 
 create function public.save_menu_month(p_menu jsonb) returns void language plpgsql security invoker set search_path = '' as $$
 declare mid uuid=(p_menu->>'id')::uuid; c jsonb; d jsonb; o jsonb;
 begin
   if not private.is_admin() then raise exception 'Administrator access required'; end if;
   insert into public.menu_months(id,school_year,year,month,title,description,status,source_reference,created_by)
-  values(mid,p_menu->>'school_year',(p_menu->>'year')::int,(p_menu->>'month')::int,p_menu->>'title',coalesce(p_menu->>'description',''),p_menu->>'status',coalesce(p_menu->>'source_reference',''),auth.uid())
+  values(mid,p_menu->>'school_year',(p_menu->>'year')::int,(p_menu->>'month')::int,p_menu->>'title',coalesce(p_menu->>'description',''),p_menu->>'status',coalesce(p_menu->>'source_reference',''),private.user_id())
   on conflict(id) do update set title=excluded.title,description=excluded.description,status=excluded.status,source_reference=excluded.source_reference;
   for c in select value from jsonb_array_elements(p_menu->'categories') loop
     if exists(select 1 from public.menu_categories where id=(c->>'id')::uuid and menu_month_id<>mid) then raise exception 'Category belongs to another month'; end if;
@@ -215,7 +231,7 @@ begin
     if exists(select 1 from public.menu_days d join public.menu_categories c on c.menu_month_id=d.menu_month_id where d.menu_month_id=mid and not d.no_school and d.lunch_available and c.meal_type='lunch' and c.required and c.selection_mode<>'informational' and not exists(select 1 from public.menu_options o where o.menu_day_id=d.id and o.menu_category_id=c.id and not o.unavailable)) then raise exception 'Every required lunch category needs options'; end if;
   end if;
 end; $$;
-revoke all on function public.save_menu_month(jsonb) from public,anon;
-grant execute on function public.save_menu_month(jsonb) to authenticated;
+revoke all on function public.save_menu_month(jsonb) from public;
+grant execute on function public.save_menu_month(jsonb) to cheverus_app;
 -- Internal trigger functions are not API endpoints.
 revoke all on function private.touch_updated_at(),private.validate_day(),private.validate_request(),private.snapshot_option() from public;
