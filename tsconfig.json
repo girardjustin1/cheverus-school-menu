@@ -15,5 +15,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src", "tests", ".storybook", "netlify/functions", "*.ts"]
+  "include": ["src", "tests", "prototype", ".storybook", "netlify/functions", "*.ts"]
 }

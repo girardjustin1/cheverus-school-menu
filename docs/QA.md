@@ -9,7 +9,7 @@
 | Vitest / RTL / PostgreSQL (`npm run test`)             | 62 passing tests across 7 files                                                                                                |
 | PostgreSQL migrations and RLS                          | 14 passing database tests, executing the actual migration and seed in PGlite                                                   |
 | Production Vite build (`npm run build`)                | Pass; larger admin/email/profile routes are loaded separately                                                                  |
-| Storybook production build (`npm run build-storybook`) | Pass, 34 stories                                                                                                               |
+| Storybook production build (`npm run build-storybook`) | Pass, 44 stories, including 10 connected GUI prototype entry points                                                            |
 | Playwright (`npm run test:e2e`)                        | 20 passing tests: 5 flows × desktop / 375 / 390 / 430 px                                                                       |
 | Prettier (`npm run format:check`)                      | Pass                                                                                                                           |
 | Interactive Storybook browser smoke check              | Lunch + EDP complete a day, no page errors                                                                                     |
@@ -19,6 +19,12 @@
 Additional backend checks: 11 Netlify Function API tests execute the actual PostgreSQL schema and transactions with trusted Identity fixtures. They verify anonymous/unconfirmed denial, no-store responses, CSRF checks, strict input, server-derived owners, family isolation, failed-save rollback, role spoofing/revocation, immutable email snapshots, date validation, and connection-state cleanup. `npm audit` reports zero vulnerabilities. The Netlify CLI also applied both migrations to its local database successfully.
 
 The Storybook manager emits a bundle-size advisory for its own development/preview runtime. The application production build does not emit that advisory.
+
+## GUI prototype review
+
+Justin requested GUI prototyping in Storybook before further backend work. **Prototype → Cheverus app** now reuses the actual app routes with Storybook-only authentication and in-memory repository substitutes. It offers the parent workflow, a 390 px phone canvas, month review, email preview, family setup, first-child onboarding, the school menu builder, simulated sign-in, no school, and save failure/retry. Reset restores the sample scenario. The October food is taken from the existing transcription. Email opening stays in a preview dialog.
+
+Browser checks verified lunch plus EDP completes a day with breakfast blank, phone navigation retains the choices into month review and the one-day email, the email action displays its prototype dialog, and failed saves retain the choice and succeed on retry. The regular app build contains none of the Storybook prototype mocks. TypeScript, ESLint, the 62 existing tests, and both app/Storybook builds pass. These prototypes are available locally; no deployment or cloud setup was performed for this GUI review.
 
 ## Covered behavior
 

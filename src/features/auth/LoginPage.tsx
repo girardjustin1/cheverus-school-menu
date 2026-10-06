@@ -125,7 +125,7 @@ export function LoginPage() {
       >
         <Box
           component="img"
-          src="/school-logo.png"
+          src={`${import.meta.env.BASE_URL}school-logo.png`}
           alt="Cheverus School"
           sx={{ width: 70, height: 70, mb: 5 }}
         />

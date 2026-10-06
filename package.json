@@ -4,6 +4,9 @@
   "description": "Cheverus School meals and Extended Day planning",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "prototype": "vite --config vite.prototype.config.ts",
+    "build:prototype": "tsc --noEmit && vite build --config vite.prototype.config.ts",
+    "storybook:prototype": "storybook dev -p 6007 --host 0.0.0.0 --no-open",
     "build": "tsc --noEmit && vite build",
     "build:netlify": "npm run build && npm run build-storybook -- --output-dir dist/storybook",
     "preview": "vite preview --host 0.0.0.0",

@@ -6,6 +6,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      'dist-prototype',
       'storybook-static',
       'node_modules',
       'playwright-report',
@@ -13,6 +14,7 @@ export default tseslint.config(
       'references',
       'imagery',
       '.netlify',
+      '.cache',
     ],
   },
   js.configs.recommended,

@@ -18,7 +18,8 @@ import { useSchool } from '../../app/WorkspaceContext';
 import { useAutosave, useWorkspace } from '../../hooks/useWorkspace';
 import { saveDraft } from '../../lib/repository';
 import { completion, dateLabel, todayInSchool } from '../../utils/plans';
-import { generateEmail, buildMailto } from './generateEmail';
+import { generateEmail } from './generateEmail';
+import { copyEmail, openEmail } from './actions';
 import { EmailPreview } from './EmailPreview';
 import type { Child, DailyRequest, EmailDraft, MenuMonth, Profile } from '../../types/domain';
 export function EmailPage() {
@@ -90,7 +91,7 @@ function EmailBuilder({
       if (open && missing.length)
         throw new Error('Complete the required decisions for the dates in this email first.');
       if (!open)
-        await navigator.clipboard.writeText(
+        await copyEmail(
           `To: ${recipient || '(recipient needed)'}\nSubject: ${email.subject}\n\n${email.body}`,
         );
       const draft: EmailDraft = {
@@ -107,7 +108,7 @@ function EmailBuilder({
       await saveDraft(draft, demo);
       await queryClient.invalidateQueries({ queryKey: familyKey });
       if (open) {
-        window.location.href = buildMailto(recipient, email.subject, email.body);
+        openEmail({ recipient, subject: email.subject, body: email.body });
         setMessage('Email draft prepared. Review and send it in your email app.');
       } else setMessage('Email copied. A snapshot is saved below for your records.');
     } catch (err) {

@@ -6,6 +6,14 @@ A mobile-first parent app for lunch, optional breakfast, and daily Extended Day 
 - [Storybook — interactive parent workflow](https://cheverus-school-menu.netlify.app/storybook/?path=/story/day-parent-workflow--interactive)
 - [Netlify project](https://app.netlify.com/projects/cheverus-school-menu)
 
+## GUI prototype first
+
+Run `npm run storybook`, then open [the local phone prototype](http://localhost:6006/?path=/story/prototype-cheverus-app--phone) or [the full parent workflow](http://localhost:6006/?path=/story/prototype-cheverus-app--parent-workflow). The **Prototype → Cheverus app** section includes monthly review, email preview, family setup, the first-child empty state, school administration, simulated sign-in, no school, and a save failure with retry. The parent navigation connects the screens, so lunch, breakfast, EDP, review, and email can be explored as one flow.
+
+Storybook uses its own in-memory family/menu and authentication mocks. No account or cloud setup is needed. Changes reset when the story reloads or **Reset prototype** is pressed. All food comes from the October transcription; family/teacher details and saved plans are labeled samples. **Open Email** previews that action in a dialog; **Copy Email** copies preview text. For the sign-in story, any valid sample email and nonempty sample password enter the prototype; signup/recovery only show simulated feedback.
+
+The Storybook Vite configuration substitutes these mocks only in Storybook. The normal app build keeps its existing repositories and authentication. Continue GUI review here before further backend or deployment work.
+
 ## Run locally
 
 Use Node 22.12 or newer.

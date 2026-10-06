@@ -1,0 +1,72 @@
+name: Publish experience prototype to GitHub Pages
+
+on:
+  push:
+    branches: [main, codex/local-experience-prototype]
+    paths:
+      - 'prototype/**'
+      - 'src/**'
+      - '.storybook/**'
+      - 'public/**'
+      - 'package*.json'
+      - 'tsconfig.json'
+      - 'vite.prototype.config.ts'
+      - 'scripts/verify-prototype-bundle.mjs'
+      - '.github/workflows/prototype-pages.yml'
+  pull_request:
+    branches: [main, feature/mvp-school-meals-edp]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: read
+
+concurrency:
+  group: prototype-pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'publish' }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Read GitHub Pages metadata
+        id: pages
+        uses: actions/configure-pages@v5
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - name: Build isolated prototype
+        run: npm run build:prototype
+        env:
+          PROTOTYPE_BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+      - name: Verify the prototype has no cloud implementation
+        run: node scripts/verify-prototype-bundle.mjs
+      - name: Build component Storybook
+        run: npm run build-storybook -- --output-dir dist-prototype/storybook
+        env:
+          STORYBOOK_BASE_PATH: ${{ steps.pages.outputs.base_path }}/storybook/
+      - run: npm run format:check
+      - name: Upload GitHub Pages files
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist-prototype
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

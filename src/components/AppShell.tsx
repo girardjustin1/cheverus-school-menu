@@ -46,6 +46,12 @@ export function AppShell() {
       <Box
         component="a"
         href="#main"
+        onClick={(event) => {
+          event.preventDefault();
+          const main = document.getElementById('main');
+          main?.focus();
+          main?.scrollIntoView();
+        }}
         sx={{
           position: 'fixed',
           left: 16,
@@ -76,7 +82,7 @@ export function AppShell() {
           >
             <Box
               component="img"
-              src="/school-logo.png"
+              src={`${import.meta.env.BASE_URL}school-logo.png`}
               alt="Cheverus School"
               sx={{ width: 45, height: 45 }}
             />
@@ -163,6 +169,7 @@ export function AppShell() {
         maxWidth="lg"
         component="main"
         id="main"
+        tabIndex={-1}
         sx={{ pt: { xs: 3, md: 5 }, pb: { xs: 12, md: 5 } }}
       >
         {!isAdmin && (
