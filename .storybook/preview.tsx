@@ -1,3 +1,4 @@
+import '../prototype/browser';
 import type { Preview } from '@storybook/react-vite';
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import { theme } from '../src/theme/theme';

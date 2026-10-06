@@ -1,5 +1,7 @@
-node_modules/
+node_modules
+.cache/
 dist/
+dist-prototype/
 storybook-static/
 playwright-report/
 test-results/
