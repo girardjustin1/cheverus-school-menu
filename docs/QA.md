@@ -35,10 +35,16 @@ See `OCTOBER_MENU_REVIEW.md` for the full transcription. Confirm the conservativ
 
 October is a draft in the production seed. Admin publication requires reviewing the menu and service schedule. The isolated demo displays the transcription as a preview so it can be explored before cloud setup.
 
+## Netlify deployment
+
+The connected Netlify account now hosts [the app](https://cheverus-school-menu.netlify.app) and [Storybook](https://cheverus-school-menu.netlify.app/storybook/?path=/story/day-parent-workflow--interactive). The combined `npm run build:netlify` output was deployed first to a draft URL and verified in Chromium: Storybook manager/iframe assets load and lunch + EDP complete a day; the app supports deep links, demo saving, reload restoration, and selection history without runtime/console errors. The verified build was then published to the new site's stable URL.
+
+The deploy contains only the labeled device demo and public menu/component assets. Netlify CLI linkage is ignored by Git. GitHub continuous deployment is still a separate setup step; the CLI deploy does not configure it.
+
 ## External setup / not claimed as verified
 
-Justin will connect Netlify. A dedicated Cheverus Supabase project has not been selected or provisioned; no unrelated cloud project was modified. Apply the migration/seed, set the public URL/key, grant the first administrator role through trusted SQL, and configure Auth Site URL/redirects/email provider as documented in `README.md`.
+A dedicated Cheverus Supabase project has not been selected or provisioned; no unrelated cloud project was modified. Apply the migration/seed, set the public URL/key, grant the first administrator role through trusted SQL, and configure Auth Site URL/redirects/email provider as documented in `README.md`.
 
-Live cloud magic-link delivery, Supabase REST/PostgREST behavior on the selected project, cloud database advisors, and Netlify branch/production deployment should be checked after that connection. Local database tests validate the PostgreSQL security model without pretending to validate those external services.
+Live cloud magic-link delivery, Supabase REST/PostgREST behavior on the selected project, and cloud database advisors should be checked after that connection. Local database tests validate the PostgreSQL security model without pretending to validate those external services.
 
 Opening a mailto draft cannot confirm sending or delivery. History labels record prepared/copied drafts and requests to open the email app. The proposed 10/20-second human usability targets were not measured with actual parents; the automated flows verify the required interactions and phone layouts.

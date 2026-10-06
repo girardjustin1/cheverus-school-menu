@@ -19,10 +19,24 @@ npm run storybook
 
 Storybook includes an interactive date → lunch → breakfast → EDP workflow, meal card states, all EDP states, breakfast configurations, month summaries, email previews, child forms, and admin day editing.
 
-## Connect Netlify
+## Netlify hosting
 
-1. Import `girardjustin1/cheverus-school-menu` in Netlify. Use `main` for production after reviewing/merging the MVP PR; a branch deploy can preview `feature/mvp-school-meals-edp` first.
-2. Build command: `npm run build`. Publish directory: `dist`. `netlify.toml` sets Node 22 and SPA route redirects.
+The hosted app is [cheverus-school-menu.netlify.app](https://cheverus-school-menu.netlify.app), with [Storybook](https://cheverus-school-menu.netlify.app/storybook/?path=/story/day-parent-workflow--interactive) on the same site. The initial deploy is the isolated October demo; cloud sign-in and shared family records still require the backend setup below. The site belongs to the Girardjustin Netlify team and was deployed through the authenticated CLI. GitHub continuous deployment has not been connected yet.
+
+To redeploy from this checkout:
+
+```sh
+npx netlify link --id 55f963a4-ef7e-4a68-91cf-67d694c555be
+npm run build:netlify
+npx netlify deploy --no-build --dir dist
+```
+
+After verifying that draft URL, publish with `npx netlify deploy --no-build --dir dist --prod`.
+
+For continuous deployment and real sign-in:
+
+1. Connect `girardjustin1/cheverus-school-menu` to the existing Cheverus site in Netlify. Use `main` for production after reviewing/merging the MVP PR; a branch deploy can preview `feature/mvp-school-meals-edp` first.
+2. Build command: `npm run build:netlify`. Publish directory: `dist`. This builds the app at `/` and Storybook at `/storybook/`. `netlify.toml` sets Node 22, SPA route redirects, and permits Storybook's same-origin preview iframe.
 3. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from a dedicated Cheverus Supabase project. Use a **publishable** key, never a secret/service role key. `.env.example` documents local configuration; actual `.env` files are ignored.
 4. Set the Supabase Auth Site URL to the Netlify production URL and allow `https://YOUR-SITE.netlify.app/auth/callback`. Add exact custom-domain/local-development URLs as needed. Magic links use the current origin; add branch preview URLs individually if testing Auth there.
 5. Deploy the database migration and October seed below, sign in, grant the initial administrator role through trusted SQL, review October, and publish it in `/admin/menus`.
@@ -94,4 +108,4 @@ npm run format:check
 
 Unit/component tests cover meal rules, optional breakfast, attendance, no-school handling, history snapshots, mailto encoding, magic-link feedback, and autosave recovery. Database tests run the actual migration and seed in PGlite (real PostgreSQL), with separate authenticated families and administrator identities; Docker/cloud credentials are not required. Playwright exercises the parent and admin flows on desktop and phone widths 375, 390, and 430 px. GitHub Actions runs the same checks.
 
-Live Supabase email delivery, cloud migration application, and the Netlify deployment require the project/site connection and are intentionally distinguished from locally verified behavior.
+The Netlify deployment and hosted app/Storybook browser checks passed. Live Supabase email delivery and cloud migration application remain unverified until a dedicated backend is connected.

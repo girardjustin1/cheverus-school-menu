@@ -11,3 +11,4 @@ references/
 imagery/
 supabase/.temp/
 supabase/.branches/
+.netlify/
