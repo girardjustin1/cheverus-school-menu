@@ -10,7 +10,7 @@ The calendar spans September 28–October 30. Import October only: 22 weekdays, 
 
 Breakfast is present in the footer: daily grab-and-go, whole grain items, fruit or 100% fruit juice, additional fruit/vegetables, and fat-free or 1% milk. Examples include muffins, cereal, cereal bars, breakfast breads, hot breakfast items, and whole grain snacks. The source does not establish which specific items are available on which dates or whether parents may choose them. Use optional breakfast opt-in for October, not invented daily choices; later menus support item selection and single/multiple/informational categories.
 
-EDP is absent from the source. Represent availability as `true` (confirmed available), `false` (confirmed unavailable), or `null` (awaiting school confirmation). Do not equate unknown with unavailable or silently enable EDP. October starts unconfirmed on school days. No-school dates have all services disabled. A day awaiting EDP confirmation displays a distinct status; breakfast never blocks completion.
+EDP is absent from the source. Represent availability as `true` (confirmed available), `false` (confirmed unavailable), or `null` (awaiting school confirmation). Do not equate unknown with unavailable or silently enable EDP. Justin confirmed during implementation that EDP runs every day from 2–6 pm; October school days therefore use confirmed availability and these hours. No-school dates have all services disabled. Future dates awaiting EDP confirmation display a distinct status; breakfast never blocks completion.
 
 ## Data and security
 
@@ -40,10 +40,10 @@ Storybook hierarchy: Foundations (theme), Navigation (DateRail), Meals (MealOpti
 
 ## Human confirmation / external setup
 
-- Confirm EDP availability for all October service dates; pending confirmation must remain visible.
+- EDP confirmed by Justin October 6: 2–6 pm every school day. Source alone does not establish this; record the human confirmation separately.
 - Confirm lunch choice rule (one entrée or one daily sandwich), sandwich availability, and applicability of the October 15 Pre-K substitution.
 - Confirm breakfast is requested as general participation rather than guaranteed item choice.
 - Confirm teacher/school email through profile; never invent a recipient.
-- Choose a dedicated Supabase project/organization before cloud provisioning. Existing connected project is unrelated; do not modify it. Cost confirmation is required by the Supabase project creation tool.
+- Justin will connect Netlify. Supabase project configuration remains a separate setup step for cloud authentication/private database; no unrelated Supabase project is modified. Cost confirmation is required by the Supabase project creation tool if provisioning later.
 - Seed October as draft in production, requiring admin review before publication. Demo labels the October transcription as a preview.
 - Configure Supabase Site URL/redirect allowlist and Netlify environment variables for actual production sign-in/deployment. A local database test can verify schema/RLS independently of those credentials.

@@ -9,7 +9,19 @@ import '@fontsource/dm-sans/700.css';
 import '@fontsource/fraunces/500.css';
 
 const preview: Preview = {
-  decorators: [(Story) => <ThemeProvider theme={theme}><CssBaseline /><div style={{ maxWidth: 1060, padding: 24 }}><Story /></div></ThemeProvider>],
-  parameters: { layout: 'fullscreen', backgrounds: { options: { ivory: { name: 'Ivory', value: '#faf9f5' } } } },
+  decorators: [
+    (Story) => (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <div style={{ maxWidth: 1060, padding: 24 }}>
+          <Story />
+        </div>
+      </ThemeProvider>
+    ),
+  ],
+  parameters: {
+    layout: 'fullscreen',
+    backgrounds: { options: { ivory: { name: 'Ivory', value: '#faf9f5' } } },
+  },
 };
 export default preview;
