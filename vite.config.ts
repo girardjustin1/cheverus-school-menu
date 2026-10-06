@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  test: { environment: 'jsdom', setupFiles: ['./tests/setup.ts'], include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'] },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./tests/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}'],
+  },
   build: { chunkSizeWarningLimit: 650 },
 });

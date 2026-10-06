@@ -1,10 +1,10 @@
-import { Box, Typography } from '@mui/material';
+import { Alert, Box, Typography } from '@mui/material';
 import SchoolOutlinedIcon from '@mui/icons-material/SchoolOutlined';
 import { LunchSection } from '../features/lunch/LunchSection';
 import { BreakfastSection } from '../features/breakfast/BreakfastSection';
 import { EdpAttendanceSelector } from '../features/edp/EdpAttendanceSelector';
 import { DayCompletionStatus } from './DayCompletionStatus';
-import { declineBreakfast, selectOption } from '../utils/plans';
+import { declineBreakfast, normalizeRequestForDay, selectOption } from '../utils/plans';
 import type { DailyRequest, MenuCategory, MenuDay } from '../types/domain';
 
 export function DailyPlan({
@@ -22,6 +22,12 @@ export function DailyPlan({
   disabled?: boolean;
   onChange: (request: DailyRequest) => void;
 }) {
+  const originalRequest = request;
+  request = normalizeRequestForDay(request, day, categories);
+  const menuChanged =
+    originalRequest.edp_status !== request.edp_status ||
+    originalRequest.breakfast_status !== request.breakfast_status ||
+    JSON.stringify(originalRequest.option_ids) !== JSON.stringify(request.option_ids);
   if (day.no_school)
     return (
       <Box sx={{ textAlign: 'center', py: 6, px: 3, bgcolor: '#f0f3ed', borderRadius: 3 }}>
@@ -37,6 +43,12 @@ export function DailyPlan({
     onChange(selectOption(request, option, category, day.options));
   return (
     <>
+      {menuChanged && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          The school menu or service availability changed since this plan was saved. Review your
+          choices; changes save when you make a selection.
+        </Alert>
+      )}
       <LunchSection
         day={day}
         categories={categories}
@@ -54,7 +66,9 @@ export function DailyPlan({
           disabled={disabled}
           onSelect={onSelect}
           onDecline={() => onChange(declineBreakfast(request, day.options))}
-          onOptIn={() => onChange({ ...request, breakfast_status: 'selected' })}
+          onOptIn={() =>
+            onChange({ ...declineBreakfast(request, day.options), breakfast_status: 'selected' })
+          }
         />
         <EdpAttendanceSelector
           childName={childName}

@@ -40,6 +40,7 @@ export function MealOptionCard({
           aria-hidden="true"
           sx={{
             height: 122,
+            order: { xs: 1, sm: 0 },
             bgcolor: colors[0],
             position: 'relative',
             overflow: 'hidden',
@@ -99,7 +100,7 @@ export function MealOptionCard({
             {selected ? <CheckCircleIcon /> : <RadioButtonUncheckedIcon />}
           </Box>
         </Box>
-        <Box sx={{ p: 2, flex: 1 }}>
+        <Box sx={{ p: 2, flex: 1, order: { xs: 0, sm: 1 } }}>
           <Box
             sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}
           >

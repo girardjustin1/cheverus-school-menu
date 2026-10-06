@@ -55,6 +55,39 @@ export function declineBreakfast(request: DailyRequest, options: MenuOption[]): 
     ),
   };
 }
+export function normalizeRequestForDay(
+  request: DailyRequest,
+  day: MenuDay,
+  categories: MenuCategory[],
+): DailyRequest {
+  const option_ids = request.option_ids.filter((id) => {
+    const option = day.options.find((o) => o.id === id);
+    if (
+      !option ||
+      option.unavailable ||
+      categories.find((c) => c.id === option.menu_category_id)?.selection_mode === 'informational'
+    )
+      return false;
+    return option.meal_type === 'lunch'
+      ? day.lunch_available
+      : day.breakfast_available &&
+          day.breakfast_mode === 'choices' &&
+          request.breakfast_status === 'selected';
+  });
+  const breakfast_status =
+    !day.breakfast_available ||
+    (day.breakfast_mode === 'choices' &&
+      request.breakfast_status === 'selected' &&
+      !option_ids.some((id) => day.options.some((o) => o.id === id && o.meal_type === 'breakfast')))
+      ? 'not_answered'
+      : request.breakfast_status;
+  return {
+    ...request,
+    option_ids,
+    breakfast_status,
+    edp_status: day.edp_available === true ? request.edp_status : 'not_answered',
+  };
+}
 export function completion(
   day: MenuDay,
   request: DailyRequest | undefined,
@@ -80,6 +113,7 @@ export function completion(
     }
     if (
       !required.length &&
+      categories.some((c) => c.meal_type === 'lunch' && c.selection_mode !== 'informational') &&
       !day.options.some(
         (o) => o.meal_type === 'lunch' && !o.unavailable && request?.option_ids.includes(o.id),
       )

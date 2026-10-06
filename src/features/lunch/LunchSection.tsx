@@ -23,7 +23,10 @@ export function LunchSection({
           Lunch
         </Typography>
         <Typography sx={{ ml: 'auto', fontSize: 11, fontWeight: 600, color: 'text.secondary' }}>
-          ONE COMPLETE MEAL
+          {categories.filter((c) => c.meal_type === 'lunch').length === 1 &&
+          categories.find((c) => c.meal_type === 'lunch')?.selection_mode === 'single'
+            ? 'ONE COMPLETE MEAL'
+            : 'YOUR LUNCH PLAN'}
         </Typography>
       </Box>
       {!day.lunch_available ? (

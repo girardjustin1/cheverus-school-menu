@@ -123,7 +123,7 @@ create policy request_update on public.daily_requests for update to authenticate
 create policy selection_read on public.meal_selections for select to authenticated using (user_id = (select auth.uid()));
 create policy selection_write on public.meal_selections for all to authenticated using (user_id = (select auth.uid()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school)) with check (user_id = (select auth.uid()) and exists(select 1 from public.menu_days d join public.menu_months m on m.id=d.menu_month_id where d.id=menu_day_id and m.status='published' and not d.no_school));
 create policy draft_read on public.email_drafts for select to authenticated using (user_id = (select auth.uid()));
-create policy draft_create on public.email_drafts for insert to authenticated with check (user_id = (select auth.uid()));
+create policy draft_create on public.email_drafts for insert to authenticated with check (user_id = (select auth.uid()) and (select private.can_read_month(menu_month_id)));
 -- Draft snapshots deliberately have no update/delete policy.
 revoke all on all tables in schema public from anon;
 grant select on all tables in schema public to authenticated;
