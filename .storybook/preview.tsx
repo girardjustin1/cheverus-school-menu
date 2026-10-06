@@ -10,10 +10,14 @@ import '@fontsource/fraunces/500.css';
 
 const preview: Preview = {
   decorators: [
-    (Story) => (
+    (Story, context) => (
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <div style={{ maxWidth: 1060, padding: 24 }}>
+        <div
+          style={
+            context.parameters.fullPage ? { minHeight: '100dvh' } : { maxWidth: 1060, padding: 24 }
+          }
+        >
           <Story />
         </div>
       </ThemeProvider>
@@ -21,6 +25,23 @@ const preview: Preview = {
   ],
   parameters: {
     layout: 'fullscreen',
+    options: {
+      storySort: {
+        order: [
+          'Prototype',
+          'Foundations',
+          'Navigation',
+          'Day',
+          'Meals',
+          'EDP',
+          'Selections',
+          'Email',
+          'Forms',
+          'Admin',
+          'Feedback',
+        ],
+      },
+    },
     backgrounds: { options: { ivory: { name: 'Ivory', value: '#faf9f5' } } },
   },
 };

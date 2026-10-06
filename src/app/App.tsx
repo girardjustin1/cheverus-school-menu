@@ -36,39 +36,42 @@ function Protected() {
     </WorkspaceProvider>
   );
 }
+export function AppRoutes() {
+  return (
+    <Suspense
+      fallback={
+        <Box sx={{ p: 6, textAlign: 'center' }}>
+          <CircularProgress aria-label="Loading page" />
+        </Box>
+      }
+    >
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<LoginPage />} />
+        <Route element={<Protected />}>
+          <Route index element={<Navigate to="/menu" replace />} />
+          <Route path="/menu" element={<MenuPage />} />
+          <Route path="/selections" element={<SelectionsPage />} />
+          <Route path="/email" element={<EmailPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/admin" element={<Navigate to="/admin/menus" replace />} />
+          <Route path="/admin/menus" element={<AdminPage />} />
+          <Route
+            path="*"
+            element={
+              <Typography>Page not found. Use the navigation to return to your plans.</Typography>
+            }
+          />
+        </Route>
+      </Routes>
+    </Suspense>
+  );
+}
 export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Suspense
-          fallback={
-            <Box sx={{ p: 6, textAlign: 'center' }}>
-              <CircularProgress aria-label="Loading page" />
-            </Box>
-          }
-        >
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/auth/callback" element={<LoginPage />} />
-            <Route element={<Protected />}>
-              <Route index element={<Navigate to="/menu" replace />} />
-              <Route path="/menu" element={<MenuPage />} />
-              <Route path="/selections" element={<SelectionsPage />} />
-              <Route path="/email" element={<EmailPage />} />
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/admin" element={<Navigate to="/admin/menus" replace />} />
-              <Route path="/admin/menus" element={<AdminPage />} />
-              <Route
-                path="*"
-                element={
-                  <Typography>
-                    Page not found. Use the navigation to return to your plans.
-                  </Typography>
-                }
-              />
-            </Route>
-          </Routes>
-        </Suspense>
+        <AppRoutes />
       </AuthProvider>
     </BrowserRouter>
   );
