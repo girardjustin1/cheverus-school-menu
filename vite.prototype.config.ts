@@ -14,6 +14,7 @@ const mocks = new Map([
 
 export default defineConfig({
   root: resolve(root, 'prototype'),
+  base: process.env.PROTOTYPE_BASE_PATH || '/',
   cacheDir: resolve(root, '.cache/prototype-vite'),
   envDir: resolve(root, 'prototype'),
   envPrefix: 'LOCAL_PROTOTYPE_',

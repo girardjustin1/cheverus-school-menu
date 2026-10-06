@@ -1,4 +1,6 @@
 dist/
+dist-prototype/
+.cache/
 storybook-static/
 playwright-report/
 test-results/

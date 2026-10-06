@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, HashRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   Box,
@@ -22,6 +22,9 @@ import type { EmailAction } from '../src/features/email/actions';
 import { AuthProvider } from './mocks/auth';
 import { prototypeEmailEvent } from './mocks/email-actions';
 import { resetPrototype, type PrototypeScenario } from './mocks/repository';
+
+const pagesMode = import.meta.env.BASE_URL !== '/';
+const PrototypeRouter = pagesMode ? HashRouter : BrowserRouter;
 
 interface Screen {
   label: string;
@@ -109,7 +112,11 @@ export function PrototypeApp() {
   const explore = (screen: Screen) => {
     session.client.clear();
     resetPrototype(screen.scenario, screen.admin);
-    window.history.replaceState(null, '', screen.path);
+    window.history.replaceState(
+      null,
+      '',
+      pagesMode ? `${import.meta.env.BASE_URL}#${screen.path}` : screen.path,
+    );
     setSession((previous) => ({ key: previous.key + 1, client: createClient() }));
     setToolsOpen(false);
     setEmail(null);
@@ -132,7 +139,7 @@ export function PrototypeApp() {
         }}
       >
         <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
-          Local prototype · Sample data
+          Experience prototype · Sample data
         </Typography>
         <Button
           size="small"
@@ -144,11 +151,17 @@ export function PrototypeApp() {
         </Button>
       </Box>
       <QueryClientProvider key={session.key} client={session.client}>
-        <BrowserRouter>
-          <AuthProvider signedIn={window.location.pathname !== '/login'}>
+        <PrototypeRouter>
+          <AuthProvider
+            signedIn={
+              (pagesMode
+                ? window.location.hash.slice(1).split('?')[0]
+                : window.location.pathname) !== '/login'
+            }
+          >
             <AppRoutes />
           </AuthProvider>
-        </BrowserRouter>
+        </PrototypeRouter>
       </QueryClientProvider>
       <Drawer anchor="right" open={toolsOpen} onClose={() => setToolsOpen(false)}>
         <Box

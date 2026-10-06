@@ -1,6 +1,10 @@
 # Local experience prototype
 
-This checkout is for local GUI exploration before database and product decisions are finalized. Do not push this branch, open or update a PR, or deploy to Netlify unless the user explicitly changes that instruction.
+This checkout is for GUI exploration before database and product decisions are finalized. The user has authorized publishing this sample-data prototype and its Storybook to GitHub Pages, and opening a PR for those changes. Do not deploy to Netlify or update its configuration. Include `[skip netlify]` in every pushed commit and in the PR title to suppress automatic Netlify builds and previews.
+
+The public prototype is at `https://girardjustin1.github.io/cheverus-school-menu/`. Its component Storybook is at `https://girardjustin1.github.io/cheverus-school-menu/storybook/`. These URLs work on mobile data while the Mac is off. The GitHub Pages workflow publishes from `codex/local-experience-prototype` and, once its source is merged there, from `main`. Pull requests only build and validate; they do not publish.
+
+GitHub Pages uses hash routes so navigation and refreshes work without a server. To build and preview the same project-path setup locally, run `PROTOTYPE_BASE_PATH=/cheverus-school-menu/ npm run build:prototype`, then `PROTOTYPE_BASE_PATH=/cheverus-school-menu/ npm exec vite -- preview --config vite.prototype.config.ts --host 0.0.0.0 --port 5176`. Open `http://localhost:5176/cheverus-school-menu/`. The build base also sets logo and asset paths.
 
 Run `npm run prototype` from this checkout. The standalone app runs on port 5175, binds to all local network interfaces, and uses the same responsive components and pages as the app. A phone on the same Wi-Fi can open `http://<Mac Wi-Fi IP>:5175`. Keep the Mac awake and the server running. This is a local network address, not a public deployment.
 

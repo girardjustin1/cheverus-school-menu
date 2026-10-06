@@ -13,6 +13,7 @@ const config: StorybookConfig = {
   framework: '@storybook/react-vite',
   staticDirs: ['../public'],
   viteFinal: (config) => {
+    if (process.env.STORYBOOK_BASE_PATH) config.base = process.env.STORYBOOK_BASE_PATH;
     config.cacheDir = resolve(root, '.cache/storybook-vite');
     config.plugins = [
       ...(config.plugins || []),
